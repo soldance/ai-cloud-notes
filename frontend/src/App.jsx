@@ -1,5 +1,110 @@
-import React, { useState, useEffect, useCallback } from 'react';
+﻿import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { authAPI, notesAPI } from './api';
+
+// ===== 内联样式（练手项目简化，实际可用 Tailwind/CSS Modules） =====
+// 🔴 必须定义在 Toast / App 之前：它们是函数组件，渲染时会读取 styles，
+//    而 const 存在暂时性死区（TDZ），定义在后面会报
+//    "Cannot read properties of undefined"。
+const styles = {
+  // 认证页
+  authContainer: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' },
+  authCard: { background: '#fff', borderRadius: 16, padding: 40, width: 380, boxShadow: '0 20px 60px rgba(0,0,0,.3)' },
+  logo: { textAlign: 'center', fontSize: 28, margin: 0 },
+  subtitle: { textAlign: 'center', color: '#888', marginBottom: 24 },
+  form: { display: 'flex', flexDirection: 'column', gap: 12 },
+  input: { padding: 12, border: '1px solid #ddd', borderRadius: 8, fontSize: 14 },
+  primaryBtn: { padding: 12, background: '#667eea', color: '#fff', border: 'none', borderRadius: 8, fontSize: 16, cursor: 'pointer' },
+  secondaryBtn: { padding: 12, background: '#f5f5f5', color: '#333', border: '1px solid #ddd', borderRadius: 8, cursor: 'pointer' },
+  divider: { textAlign: 'center', margin: 16, color: '#aaa', fontSize: 12 },
+
+  // 主应用
+  app: { minHeight: '100vh', background: '#f8f9fa' },
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 24px', background: '#fff', borderBottom: '1px solid #eee', position: 'sticky', top: 0, zIndex: 100 },
+  headerLogo: { fontSize: 20, margin: 0 },
+  headerRight: { display: 'flex', gap: 12, alignItems: 'center' },
+  searchInput: { padding: 8, border: '1px solid #ddd', borderRadius: 8, width: 240 },
+  logoutBtn: { padding: '8px 16px', background: '#fff', border: '1px solid #ddd', borderRadius: 8, cursor: 'pointer' },
+
+  main: { display: 'flex', height: 'calc(100vh - 60px)' },
+  sidebar: { width: 300, background: '#fff', borderRight: '1px solid #eee', padding: 16, overflowY: 'auto' },
+  newBtn: { width: '100%', padding: 12, background: '#667eea', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', marginBottom: 16 },
+
+  // 标签筛选提示条
+  filterBar: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 10px', marginBottom: 12, background: '#eef2ff', border: '1px solid #c7d2fe', borderRadius: 8 },
+  filterBarText: { fontSize: 12, color: '#4338ca' },
+  filterClearBtn: { background: 'transparent', border: 'none', color: '#4338ca', fontSize: 12, cursor: 'pointer', padding: '2px 6px', borderRadius: 4 },
+
+  noteList: { display: 'flex', flexDirection: 'column', gap: 8 },
+  noteItem: { padding: 12, border: '1px solid #eee', borderRadius: 8, cursor: 'pointer', transition: 'all .2s' },
+  noteItemActive: { borderColor: '#667eea', background: '#f0f4ff' },
+  noteTitle: { fontWeight: 600, fontSize: 14, marginBottom: 4, cursor: 'pointer' },
+  notePreview: { fontSize: 12, color: '#888', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  tagList: { display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 6 },
+  tag: { fontSize: 11, background: '#eef2ff', color: '#667eea', padding: '2px 6px', borderRadius: 4, cursor: 'pointer' },
+  tagActive: { background: '#667eea', color: '#fff', fontWeight: 600 },
+  noteActions: { display: 'flex', gap: 8, marginTop: 6 },
+  actionIcon: { cursor: 'pointer', fontSize: 14 },
+
+  editor: { flex: 1, padding: 24, overflowY: 'auto' },
+  editorForm: { display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 800, margin: '0 auto' },
+  titleInput: { fontSize: 24, fontWeight: 700, border: 'none', outline: 'none', padding: 12, background: 'transparent' },
+  tagsInput: { padding: 8, border: '1px solid #eee', borderRadius: 8, fontSize: 13 },
+  contentInput: { minHeight: 500, padding: 16, border: '1px solid #eee', borderRadius: 12, fontSize: 15, lineHeight: 1.8, resize: 'vertical', fontFamily: 'inherit' },
+  editorActions: { display: 'flex', gap: 12 },
+  saveBtn: { padding: '10px 24px', background: '#667eea', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' },
+  cancelBtn: { padding: '10px 24px', background: '#fff', border: '1px solid #ddd', borderRadius: 8, cursor: 'pointer' },
+
+  emptyTip: { textAlign: 'center', color: '#aaa', padding: 40 },
+
+  // Toast 错误提示（固定右上角浮层，不再挤占文档流）
+  toast: {
+    position: 'fixed', top: 20, right: 20, zIndex: 9999,
+    display: 'flex', alignItems: 'center', gap: 8,
+    maxWidth: 360, padding: '12px 14px',
+    background: '#fef2f2', color: '#b91c1c',
+    border: '1px solid #fecaca', borderLeft: '4px solid #dc2626',
+    borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,.12)',
+    fontSize: 13, lineHeight: 1.5,
+  },
+  toastIcon: { flexShrink: 0 },
+  toastMessage: { flex: 1, wordBreak: 'break-word' },
+  toastClose: {
+    flexShrink: 0, background: 'transparent', border: 'none',
+    color: '#b91c1c', fontSize: 14, cursor: 'pointer',
+    padding: '2px 4px', borderRadius: 4, lineHeight: 1,
+  },
+};
+
+/** 错误提示自动消失时间（毫秒） */
+const TOAST_DURATION = 2500;
+
+/**
+ * Toast - 错误提示浮层
+ *
+ * 为什么单独抽成组件？
+ * 登录页和主界面都要用它，抽出来避免两处各写一遍（原先的红色横条就重复了两次）。
+ *
+ * 无障碍：role="alert" 带隐式 aria-live="assertive"，
+ * 屏幕阅读器会立刻播报错误，不用等用户 Tab 过去才发现。
+ */
+function Toast({ message, onClose }) {
+  if (!message) return null;
+  return (
+    <div role="alert" data-testid="toast" style={styles.toast}>
+      <span style={styles.toastIcon}>⚠️</span>
+      <span style={styles.toastMessage}>{message}</span>
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="关闭提示"
+        data-testid="toast-close"
+        style={styles.toastClose}
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
 
 /**
  * App.jsx - 主应用组件
@@ -43,6 +148,24 @@ export default function App() {
   useEffect(() => {
     loadNotes();
   }, [loadNotes]);
+
+  // ===== Toast 自动消失 =====
+  // error 变化时重置计时器：2.5 秒后自动清除。
+  // 不这么做的话，上一次的错误会一直挂着，用户会以为新操作也失败了。
+  const toastTimerRef = useRef(null);
+  useEffect(() => {
+    if (!error) return undefined;
+    clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setError(''), TOAST_DURATION);
+    // 组件卸载或 error 再次变化时清掉旧计时器，避免内存泄漏 / 误清除
+    return () => clearTimeout(toastTimerRef.current);
+  }, [error]);
+
+  // 手动关闭：清掉文案，同时取消待执行的自动消失计时器
+  const closeToast = () => {
+    clearTimeout(toastTimerRef.current);
+    setError('');
+  };
 
   // ===== 注册 =====
   const handleRegister = async (e) => {
@@ -156,7 +279,7 @@ export default function App() {
           <h1 style={styles.logo}>📝 AI 云笔记</h1>
           <p style={styles.subtitle}>你的知识，随时记录</p>
 
-          {error && <div style={styles.error}>{error}</div>}
+          <Toast message={error} onClose={closeToast} />
 
           <form onSubmit={handleLogin} style={styles.form}>
             <input
@@ -207,7 +330,7 @@ export default function App() {
         </div>
       </header>
 
-      {error && <div style={styles.error}>{error}</div>}
+      <Toast message={error} onClose={closeToast} />
 
       <div style={styles.main}>
         {/* 左侧：笔记列表 */}
@@ -340,60 +463,3 @@ export default function App() {
     </div>
   );
 }
-
-// ===== 内联样式（练手项目简化，实际可用 Tailwind/CSS Modules） =====
-const styles = {
-  // 认证页
-  authContainer: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' },
-  authCard: { background: '#fff', borderRadius: 16, padding: 40, width: 380, boxShadow: '0 20px 60px rgba(0,0,0,.3)' },
-  logo: { textAlign: 'center', fontSize: 28, margin: 0 },
-  subtitle: { textAlign: 'center', color: '#888', marginBottom: 24 },
-  form: { display: 'flex', flexDirection: 'column', gap: 12 },
-  input: { padding: 12, border: '1px solid #ddd', borderRadius: 8, fontSize: 14 },
-  primaryBtn: { padding: 12, background: '#667eea', color: '#fff', border: 'none', borderRadius: 8, fontSize: 16, cursor: 'pointer' },
-  secondaryBtn: { padding: 12, background: '#f5f5f5', color: '#333', border: '1px solid #ddd', borderRadius: 8, cursor: 'pointer' },
-  divider: { textAlign: 'center', margin: 16, color: '#aaa', fontSize: 12 },
-
-  // 主应用
-  app: { minHeight: '100vh', background: '#f8f9fa' },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 24px', background: '#fff', borderBottom: '1px solid #eee', position: 'sticky', top: 0, zIndex: 100 },
-  headerLogo: { fontSize: 20, margin: 0 },
-  headerRight: { display: 'flex', gap: 12, alignItems: 'center' },
-  searchInput: { padding: 8, border: '1px solid #ddd', borderRadius: 8, width: 240 },
-  logoutBtn: { padding: '8px 16px', background: '#fff', border: '1px solid #ddd', borderRadius: 8, cursor: 'pointer' },
-
-  main: { display: 'flex', height: 'calc(100vh - 60px)' },
-  sidebar: { width: 300, background: '#fff', borderRight: '1px solid #eee', padding: 16, overflowY: 'auto' },
-  newBtn: { width: '100%', padding: 12, background: '#667eea', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', marginBottom: 16 },
-
-  // 标签筛选提示条
-  filterBar: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 10px', marginBottom: 12, background: '#eef2ff', border: '1px solid #c7d2fe', borderRadius: 8 },
-  filterBarText: { fontSize: 12, color: '#4338ca' },
-  filterClearBtn: { background: 'transparent', border: 'none', color: '#4338ca', fontSize: 12, cursor: 'pointer', padding: '2px 6px', borderRadius: 4 },
-
-  noteList: { display: 'flex', flexDirection: 'column', gap: 8 },
-  noteItem: { padding: 12, border: '1px solid #eee', borderRadius: 8, cursor: 'pointer', transition: 'all .2s' },
-  noteItemActive: { borderColor: '#667eea', background: '#f0f4ff' },
-  noteTitle: { fontWeight: 600, fontSize: 14, marginBottom: 4, cursor: 'pointer' },
-  notePreview: { fontSize: 12, color: '#888', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  tagList: { display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 6 },
-  tag: { fontSize: 11, background: '#eef2ff', color: '#667eea', padding: '2px 6px', borderRadius: 4, cursor: 'pointer' },
-  tagActive: { background: '#667eea', color: '#fff', fontWeight: 600 },
-  noteActions: { display: 'flex', gap: 8, marginTop: 6 },
-  actionIcon: { cursor: 'pointer', fontSize: 14 },
-
-  editor: { flex: 1, padding: 24, overflowY: 'auto' },
-  editorForm: { display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 800, margin: '0 auto' },
-  titleInput: { fontSize: 24, fontWeight: 700, border: 'none', outline: 'none', padding: 12, background: 'transparent' },
-  tagsInput: { padding: 8, border: '1px solid #eee', borderRadius: 8, fontSize: 13 },
-  contentInput: { minHeight: 500, padding: 16, border: '1px solid #eee', borderRadius: 12, fontSize: 15, lineHeight: 1.8, resize: 'vertical', fontFamily: 'inherit' },
-  editorActions: { display: 'flex', gap: 12 },
-  saveBtn: { padding: '10px 24px', background: '#667eea', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' },
-  cancelBtn: { padding: '10px 24px', background: '#fff', border: '1px solid #ddd', borderRadius: 8, cursor: 'pointer' },
-
-  error: { margin: 12, padding: 12, background: '#fee', color: '#c00', borderRadius: 8, fontSize: 13 },
-  emptyTip: { textAlign: 'center', color: '#aaa', padding: 40 },
-};
-
-// 确保 React 被正确引用（JSX 需要）
-void React;
