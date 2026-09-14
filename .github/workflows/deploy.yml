@@ -38,9 +38,23 @@ jobs:
         run: npm run build
 
   # ===== 阶段 2：部署到服务器（仅 main 分支） =====
+  #
+  # ⚙️ 部署总开关：仓库变量 DEPLOY_ENABLED
+  #   - 未配置 或 值为 false → 本 job 直接跳过（显示 ⏭️ skipped，不会失败报错）
+  #   - 值为 true            → 正常执行 SSH 部署
+  #
+  # 为什么需要这个开关？
+  #   没配服务器时，下方的 secrets.SERVER_IP 是空字符串，
+  #   appleboy/scp-action 会因为拿不到 host 而报错，
+  #   导致每次 push main 都收到一封"部署失败"的邮件 —— 但代码其实完全没问题。
+  #
+  # 🔴 第 4 周准备好服务器后，这样开启：
+  #   1. 配好 4 个 Secret：SERVER_IP / SERVER_USER / SSH_PRIVATE_KEY / JWT_SECRET
+  #   2. 到 Settings → Secrets and variables → Actions → Variables
+  #      新建变量 DEPLOY_ENABLED = true
   deploy:
     needs: test
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
