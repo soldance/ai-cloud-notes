@@ -12,6 +12,7 @@ export default function App() {
   const [password, setPassword] = useState('');
   const [notes, setNotes] = useState([]);
   const [search, setSearch] = useState('');
+  const [activeTag, setActiveTag] = useState(''); // '' = 不按标签筛选
   const [editingNote, setEditingNote] = useState(null); // null = 新建模式
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -29,6 +30,7 @@ export default function App() {
     try {
       const params = {};
       if (search) params.search = search;
+      if (activeTag) params.tag = activeTag;
       const res = await notesAPI.list(params);
       setNotes(res.data || []);
     } catch (err) {
@@ -36,7 +38,7 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  }, [isLoggedIn, search]);
+  }, [isLoggedIn, search, activeTag]);
 
   useEffect(() => {
     loadNotes();
@@ -129,6 +131,15 @@ export default function App() {
     }
   };
 
+  // ===== 按标签筛选 =====
+  // 点击笔记上的标签 → 列表只显示含该标签的笔记
+  // 再次点击同一个标签 → 取消筛选（当作开关用，避免用户找不到"清除"入口）
+  const handleTagClick = (tag) => {
+    setActiveTag(prev => (prev === tag ? '' : tag));
+  };
+
+  const clearTagFilter = () => setActiveTag('');
+
   // ===== 重置表单 =====
   const resetForm = () => {
     setEditingNote(null);
@@ -204,6 +215,23 @@ export default function App() {
           <button onClick={resetForm} data-testid="new-note-btn" style={styles.newBtn}>
             ➕ 新建笔记
           </button>
+
+          {/* 标签筛选状态提示条（仅在筛选时出现） */}
+          {activeTag && (
+            <div style={styles.filterBar} data-testid="tag-filter-bar">
+              <span style={styles.filterBarText}>
+                标签：<strong>{activeTag}</strong>
+              </span>
+              <button
+                onClick={clearTagFilter}
+                data-testid="clear-tag-filter"
+                style={styles.filterClearBtn}
+              >
+                清除 ✕
+              </button>
+            </div>
+          )}
+
           <div style={styles.noteList}>
             {loading && <p style={styles.emptyTip}>加载中...</p>}
             {!loading && notes.length === 0 && (
@@ -219,7 +247,12 @@ export default function App() {
                 }}
                 onClick={() => handleEdit(note)}
               >
-                <div style={styles.noteTitle}>
+                <div
+                  style={styles.noteTitle}
+                  data-testid="note-title"
+                  onClick={e => { e.stopPropagation(); handleEdit(note); }}
+                  title="点击编辑这条笔记"
+                >
                   {note.is_favorite ? '⭐ ' : ''}
                   {note.title}
                 </div>
@@ -229,7 +262,18 @@ export default function App() {
                 {note.tags?.length > 0 && (
                   <div style={styles.tagList}>
                     {note.tags.map((tag, i) => (
-                      <span key={i} style={styles.tag}>{tag}</span>
+                      <span
+                        key={i}
+                        data-testid="note-tag"
+                        title={`只看「${tag}」标签的笔记`}
+                        onClick={e => { e.stopPropagation(); handleTagClick(tag); }}
+                        style={{
+                          ...styles.tag,
+                          ...(activeTag === tag ? styles.tagActive : {}),
+                        }}
+                      >
+                        {tag}
+                      </span>
                     ))}
                   </div>
                 )}
@@ -321,13 +365,20 @@ const styles = {
   main: { display: 'flex', height: 'calc(100vh - 60px)' },
   sidebar: { width: 300, background: '#fff', borderRight: '1px solid #eee', padding: 16, overflowY: 'auto' },
   newBtn: { width: '100%', padding: 12, background: '#667eea', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', marginBottom: 16 },
+
+  // 标签筛选提示条
+  filterBar: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 10px', marginBottom: 12, background: '#eef2ff', border: '1px solid #c7d2fe', borderRadius: 8 },
+  filterBarText: { fontSize: 12, color: '#4338ca' },
+  filterClearBtn: { background: 'transparent', border: 'none', color: '#4338ca', fontSize: 12, cursor: 'pointer', padding: '2px 6px', borderRadius: 4 },
+
   noteList: { display: 'flex', flexDirection: 'column', gap: 8 },
   noteItem: { padding: 12, border: '1px solid #eee', borderRadius: 8, cursor: 'pointer', transition: 'all .2s' },
   noteItemActive: { borderColor: '#667eea', background: '#f0f4ff' },
-  noteTitle: { fontWeight: 600, fontSize: 14, marginBottom: 4 },
+  noteTitle: { fontWeight: 600, fontSize: 14, marginBottom: 4, cursor: 'pointer' },
   notePreview: { fontSize: 12, color: '#888', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
   tagList: { display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 6 },
-  tag: { fontSize: 11, background: '#eef2ff', color: '#667eea', padding: '2px 6px', borderRadius: 4 },
+  tag: { fontSize: 11, background: '#eef2ff', color: '#667eea', padding: '2px 6px', borderRadius: 4, cursor: 'pointer' },
+  tagActive: { background: '#667eea', color: '#fff', fontWeight: 600 },
   noteActions: { display: 'flex', gap: 8, marginTop: 6 },
   actionIcon: { cursor: 'pointer', fontSize: 14 },
 
