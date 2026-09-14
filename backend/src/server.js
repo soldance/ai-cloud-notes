@@ -34,9 +34,13 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: '服务器内部错误' });
 });
 
-// 启动
-app.listen(PORT, () => {
-  console.log(`🚀 后端服务运行在 http://localhost:${PORT}`);
-});
+// 启动（只有「直接运行本文件」时才监听端口）
+// 用 require.main === module 判断：`node src/server.js` 会启动服务，
+// 而测试里 `require('../src/server')` 只拿到 app，不会抢占 3000 端口。
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`🚀 后端服务运行在 http://localhost:${PORT}`);
+  });
+}
 
 module.exports = app; // 供测试使用

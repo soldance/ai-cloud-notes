@@ -150,6 +150,7 @@ export default function App() {
           <form onSubmit={handleLogin} style={styles.form}>
             <input
               type="text"
+              data-testid="username-input"
               placeholder="用户名"
               value={username}
               onChange={e => setUsername(e.target.value)}
@@ -157,18 +158,19 @@ export default function App() {
             />
             <input
               type="password"
+              data-testid="password-input"
               placeholder="密码（至少6位）"
               value={password}
               onChange={e => setPassword(e.target.value)}
               style={styles.input}
             />
-            <button type="submit" style={styles.primaryBtn}>登录</button>
+            <button type="submit" data-testid="login-btn" style={styles.primaryBtn}>登录</button>
           </form>
 
           <div style={styles.divider}>— 或 —</div>
 
           <form onSubmit={handleRegister} style={styles.form}>
-            <button type="submit" style={styles.secondaryBtn}>注册新账号</button>
+            <button type="submit" data-testid="register-btn" style={styles.secondaryBtn}>注册新账号</button>
           </form>
         </div>
       </div>
@@ -184,12 +186,13 @@ export default function App() {
         <div style={styles.headerRight}>
           <input
             type="text"
+            data-testid="search-input"
             placeholder="🔍 搜索笔记..."
             value={search}
             onChange={e => setSearch(e.target.value)}
             style={styles.searchInput}
           />
-          <button onClick={handleLogout} style={styles.logoutBtn}>登出</button>
+          <button onClick={handleLogout} data-testid="logout-btn" style={styles.logoutBtn}>登出</button>
         </div>
       </header>
 
@@ -198,17 +201,18 @@ export default function App() {
       <div style={styles.main}>
         {/* 左侧：笔记列表 */}
         <aside style={styles.sidebar}>
-          <button onClick={resetForm} style={styles.newBtn}>
+          <button onClick={resetForm} data-testid="new-note-btn" style={styles.newBtn}>
             ➕ 新建笔记
           </button>
           <div style={styles.noteList}>
             {loading && <p style={styles.emptyTip}>加载中...</p>}
             {!loading && notes.length === 0 && (
-              <p style={styles.emptyTip}>还没有笔记，点击上方新建 ✨</p>
+              <p style={styles.emptyTip} data-testid="empty-tip">还没有笔记，点击上方新建 ✨</p>
             )}
             {notes.map(note => (
               <div
                 key={note.id}
+                data-testid="note-item"
                 style={{
                   ...styles.noteItem,
                   ...(editingNote?.id === note.id ? styles.noteItemActive : {}),
@@ -231,12 +235,14 @@ export default function App() {
                 )}
                 <div style={styles.noteActions}>
                   <span
+                    data-testid="favorite-btn"
                     onClick={e => { e.stopPropagation(); handleToggleFavorite(note); }}
                     style={styles.actionIcon}
                   >
                     {note.is_favorite ? '⭐' : '☆'}
                   </span>
                   <span
+                    data-testid="delete-btn"
                     onClick={e => { e.stopPropagation(); handleDelete(note.id); }}
                     style={styles.actionIcon}
                   >
@@ -253,6 +259,7 @@ export default function App() {
           <form onSubmit={handleSave} style={styles.editorForm}>
             <input
               type="text"
+              data-testid="title-input"
               placeholder="标题"
               value={title}
               onChange={e => setTitle(e.target.value)}
@@ -260,23 +267,25 @@ export default function App() {
             />
             <input
               type="text"
+              data-testid="tags-input"
               placeholder="标签（逗号分隔，如：学习, AI, 项目）"
               value={tags}
               onChange={e => setTags(e.target.value)}
               style={styles.tagsInput}
             />
             <textarea
+              data-testid="content-input"
               placeholder="开始写作...（支持 Markdown）"
               value={content}
               onChange={e => setContent(e.target.value)}
               style={styles.contentInput}
             />
             <div style={styles.editorActions}>
-              <button type="submit" style={styles.saveBtn}>
+              <button type="submit" data-testid="save-btn" style={styles.saveBtn}>
                 {editingNote ? '💾 更新' : '✨ 创建'}
               </button>
               {editingNote && (
-                <button type="button" onClick={resetForm} style={styles.cancelBtn}>
+                <button type="button" onClick={resetForm} data-testid="cancel-btn" style={styles.cancelBtn}>
                   取消
                 </button>
               )}

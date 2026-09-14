@@ -1,60 +1,88 @@
 /**
  * notes.spec.js - Playwright E2E 测试
- * 模拟真实用户操作：注册 → 登录 → 新建笔记 → 搜索 → 编辑 → 删除
+ * 模拟真实用户操作：注册 → 新建笔记 → 搜索 → 编辑 → 收藏 → 删除
  *
- * 运行方式（项目跑起来后）：
+ * 定位约定：全部使用 data-testid（见 frontend/src/App.jsx）
+ * 原因：App.jsx 用内联样式对象，DOM 里没有真实 class 名，
+ *       文本定位又容易被「搜索结果」和「编辑区」的同名文本同时命中。
+ *
+ * 运行方式（前后端都启动后）：
  *   npx playwright test
+ *   npx playwright test --headed     # 想看浏览器界面
+ *   npx playwright test --ui         # 想调试每一步
  */
 const { test, expect } = require('@playwright/test');
 
 const BASE_URL = process.env.E2E_URL || 'http://localhost:5173';
 
 test.describe('AI 云笔记 E2E 流程', () => {
-  test('完整用户流程', async ({ page }) => {
-    // 1. 打开应用 → 看到登录页
+  test('完整用户流程：注册 → 新建 → 搜索 → 编辑 → 收藏 → 删除', async ({ page }) => {
+    // 1. 注册后自动登录会进入主界面，先把 confirm 自动确认掉
+    page.on('dialog', dialog => dialog.accept());
+
+    // 2. 打开应用 → 看到登录页
     await page.goto(BASE_URL);
     await expect(page.getByText('📝 AI 云笔记')).toBeVisible();
 
-    // 2. 注册新用户
-    const timestamp = Date.now();
-    const username = `testuser_${timestamp}`;
-    await page.fill('input[placeholder="用户名"]', username);
-    await page.fill('input[placeholder*="密码"]', '123456');
-    await page.click('button:has-text("注册")');
+    // 3. 注册新用户（每次跑用时间戳，避免「用户名已存在 409」）
+    const username = `testuser_${Date.now()}`;
+    await page.getByTestId('username-input').fill(username);
+    await page.getByTestId('password-input').fill('123456');
+    await page.getByTestId('register-btn').click();
 
-    // 3. 注册后自动登录 → 进入主界面
-    await expect(page.getByText('➕ 新建笔记')).toBeVisible({ timeout: 10000 });
+    // 4. 注册后自动登录 → 进入主界面
+    await expect(page.getByTestId('new-note-btn')).toBeVisible({ timeout: 10000 });
+    // 新用户应该看到空列表提示
+    await expect(page.getByTestId('empty-tip')).toBeVisible();
 
-    // 4. 新建笔记
-    await page.click('button:has-text("新建笔记")');
-    await page.fill('input[placeholder="标题"]', 'Playwright 测试笔记');
-    await page.fill('input[placeholder*="标签"]', '测试, E2E, Playwright');
-    await page.fill('textarea[placeholder*="开始写作"]', '这是一条由 Playwright 自动创建的笔记');
-    await page.click('button:has-text("创建")');
+    // 5. 新建笔记
+    await page.getByTestId('new-note-btn').click();
+    await page.getByTestId('title-input').fill('Playwright 测试笔记');
+    await page.getByTestId('tags-input').fill('测试, E2E, Playwright');
+    await page.getByTestId('content-input').fill('这是一条由 Playwright 自动创建的笔记');
+    await page.getByTestId('save-btn').click();
 
-    // 5. 验证笔记出现在列表
-    await expect(page.getByText('Playwright 测试笔记')).toBeVisible();
+    // 6. 验证笔记出现在左侧列表（列表项内的标题文本）
+    const noteItem = page.getByTestId('note-item');
+    await expect(noteItem).toHaveCount(1);
+    await expect(noteItem).toContainText('Playwright 测试笔记');
+    await expect(noteItem.getByText('E2E')).toBeVisible(); // 标签也渲染出来了
 
-    // 6. 搜索笔记
-    await page.fill('input[placeholder*="搜索"]', 'Playwright');
-    await expect(page.getByText('Playwright 测试笔记')).toBeVisible();
+    // 7. 搜索：命中关键词时笔记仍在
+    await page.getByTestId('search-input').fill('Playwright');
+    await expect(page.getByTestId('note-item')).toHaveCount(1);
 
-    // 7. 清空搜索，看到全部
-    await page.fill('input[placeholder*="搜索"]', '');
+    // 8. 搜索：换成不存在的关键词时列表清空（验证搜索真的在过滤）
+    await page.getByTestId('search-input').fill('不存在的关键词_zzz');
+    await expect(page.getByTestId('note-item')).toHaveCount(0);
 
-    // 8. 编辑笔记
-    await page.click('text=Playwright 测试笔记 >> .. >> ..'.replace(' >> ..', ''));
-    // 点击笔记项进入编辑
-    await page.locator('.note-item, [class*="noteItem"]').first().click();
-    await page.fill('input[placeholder="标题"]', 'Playwright 测试笔记（已修改）');
-    await page.click('button:has-text("更新")');
-    await expect(page.getByText('（已修改）')).toBeVisible();
+    // 9. 清空搜索 → 笔记回来
+    await page.getByTestId('search-input').fill('');
+    await expect(page.getByTestId('note-item')).toHaveCount(1);
 
-    // 9. 删除笔记（先定位再删除）
-    // 注意：实际项目中建议加 data-testid 定位，这里用文本定位演示
-    // await page.locator('text=🗑️').first().click();
-    // await page.click('button:has-text("确定")');
+    // 10. 编辑笔记：点击列表项 → 表单被填入该笔记 → 改名后保存
+    await page.getByTestId('note-item').click();
+    await expect(page.getByTestId('title-input')).toHaveValue('Playwright 测试笔记');
+    await page.getByTestId('title-input').fill('Playwright 测试笔记（已修改）');
+    await page.getByTestId('save-btn').click();
 
-    console.log('✅ E2E 测试完成');
+    // 验证列表里标题已更新，且表单回到「新建」状态（标题被清空）
+    await expect(page.getByTestId('note-item')).toContainText('（已修改）');
+    await expect(page.getByTestId('title-input')).toHaveValue('');
+
+    // 11. 切换收藏 → 列表项出现 ⭐
+    await page.getByTestId('favorite-btn').first().click();
+    await expect(page.getByTestId('note-item').first()).toContainText('⭐');
+
+    // 12. 删除笔记（confirm 已在第 1 步自动确认）→ 回到空列表
+    await page.getByTestId('delete-btn').first().click();
+    await expect(page.getByTestId('note-item')).toHaveCount(0);
+    await expect(page.getByTestId('empty-tip')).toBeVisible();
+
+    // 13. 登出 → 回到登录页
+    await page.getByTestId('logout-btn').click();
+    await expect(page.getByTestId('login-btn')).toBeVisible();
+
+    console.log(`✅ E2E 测试完成（用户：${username}）`);
   });
 });

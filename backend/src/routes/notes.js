@@ -16,6 +16,20 @@ const router = Router();
 // 所有笔记接口都需要登录
 router.use(authMiddleware);
 
+/**
+ * 把数据库里的一行 note 转成 API 响应格式
+ * - tags：SQLite 存的是 JSON 字符串，要转回数组
+ * - is_favorite：SQLite 没有布尔类型，存的是 0/1，
+ *   要转成真正的布尔值，否则前端拿到数字、测试断言 true 会失败
+ */
+function toNoteResponse(row) {
+  return {
+    ...row,
+    tags: JSON.parse(row.tags),
+    is_favorite: !!row.is_favorite,
+  };
+}
+
 // 列表 + 搜索
 router.get('/', (req, res) => {
   const { search, tag, favorite } = req.query;
@@ -37,10 +51,8 @@ router.get('/', (req, res) => {
   sql += ' ORDER BY updated_at DESC';
 
   const notes = db.prepare(sql).all(...params);
-  // 把 tags 从 JSON 字符串转回数组
-  notes.forEach(n => { n.tags = JSON.parse(n.tags); });
 
-  res.json({ data: notes });
+  res.json({ data: notes.map(toNoteResponse) });
 });
 
 // 详情
@@ -49,8 +61,7 @@ router.get('/:id', (req, res) => {
     .get(req.params.id, req.userId);
 
   if (!note) return res.status(404).json({ error: '笔记不存在' });
-  note.tags = JSON.parse(note.tags);
-  res.json(note);
+  res.json(toNoteResponse(note));
 });
 
 // 新建
@@ -65,8 +76,7 @@ router.post('/', (req, res) => {
   `).run(id, req.userId, title, content || '', JSON.stringify(tags || []));
 
   const note = db.prepare('SELECT * FROM notes WHERE id = ?').get(id);
-  note.tags = JSON.parse(note.tags);
-  res.status(201).json(note);
+  res.status(201).json(toNoteResponse(note));
 });
 
 // 更新
@@ -93,8 +103,7 @@ router.put('/:id', (req, res) => {
   );
 
   const note = db.prepare('SELECT * FROM notes WHERE id = ?').get(req.params.id);
-  note.tags = JSON.parse(note.tags);
-  res.json(note);
+  res.json(toNoteResponse(note));
 });
 
 // 删除
