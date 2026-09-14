@@ -60,8 +60,11 @@ test.describe('AI 云笔记 E2E 流程', () => {
     await page.getByTestId('search-input').fill('');
     await expect(page.getByTestId('note-item')).toHaveCount(1);
 
-    // 10. 编辑笔记：点击列表项 → 表单被填入该笔记 → 改名后保存
-    await page.getByTestId('note-item').click();
+    // 10. 编辑笔记：点标题进入编辑 → 表单被填入该笔记 → 改名后保存
+    // 注意：不要点 note-item 整张卡片 —— Playwright 点的是几何中心，
+    // 卡片里含标签/收藏/删除等子元素，中心可能落到子元素上被 stopPropagation 吃掉。
+    // 点 note-title 才是明确的「编辑」目标。
+    await page.getByTestId('note-title').click();
     await expect(page.getByTestId('title-input')).toHaveValue('Playwright 测试笔记');
     await page.getByTestId('title-input').fill('Playwright 测试笔记（已修改）');
     await page.getByTestId('save-btn').click();
