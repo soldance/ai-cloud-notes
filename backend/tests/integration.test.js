@@ -1,24 +1,16 @@
 /**
  * integration.test.js - 后端集成测试（TDD）
  * 用 supertest 模拟 HTTP 请求，验证接口正确性
+ *
+ * ⚠️ 数据库隔离：这里不再手动 DELETE 数据表。
+ * tests/setup.js 会把 DB_PATH 指向 data/test.db（独立测试库），
+ * 每次跑测试前整个文件被删除重建，所以这里天然就是干净库，
+ * 你本地 data/notes.db 里的真实笔记不会被碰。
  */
 const request = require('supertest');
 const app = require('../src/server');
-const db = require('../src/db');
 
 let authToken = '';
-
-beforeAll(() => {
-  // 清空测试数据（用内存数据库或独立测试库）
-  db.prepare('DELETE FROM notes').run();
-  db.prepare('DELETE FROM users').run();
-});
-
-afterAll(() => {
-  // 测试完清理
-  db.prepare('DELETE FROM notes').run();
-  db.prepare('DELETE FROM users').run();
-});
 
 describe('认证流程', () => {
   test('注册新用户 → 返回 token', async () => {
