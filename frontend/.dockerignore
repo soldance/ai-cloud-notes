@@ -1,0 +1,24 @@
+# ===== Docker 构建上下文排除清单 =====
+#
+# 前端的多阶段构建里，`COPY . .` 同样会把本地 node_modules 复制进去，
+# 覆盖 `RUN npm ci` 装的 Linux 版依赖（原理同 backend/.dockerignore 的说明）。
+#
+# 本项目的关键依赖 esbuild / rollup 也是带平台二进制的包，
+# 被 Windows 版覆盖后会在构建阶段就报错，所以这里同样必须排除。
+node_modules
+
+# 构建产物（容器内会自己 npm run build 生成）
+dist
+
+# 日志与运行时产物
+*.log
+npm-debug.log*
+
+# 编辑器 / 系统文件
+.vscode
+.idea
+.DS_Store
+
+# 版本控制
+.git
+.gitignore
