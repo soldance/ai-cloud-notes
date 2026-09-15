@@ -21,7 +21,7 @@ cd frontend && npm run dev     # 前端 → http://localhost:5173
 
 # 测试
 cd backend  && npm test        # Jest + Supertest，期望 11 passed（不占端口）
-cd tests-e2e && npx playwright test    # 需前后端都在跑，期望 1 passed
+cd tests-e2e && npx playwright test    # 需前后端都在跑，共 5 个用例（notes / tag-filter / error-toast）
 
 # 健康检查
 curl http://localhost:3000/api/health
@@ -40,6 +40,8 @@ curl http://localhost:3000/api/health
 | 不要提交 `data/*.db` | 已 gitignore，且是用户数据 |
 | 改 `db.js` 时确认 `initDB()` 被调用 | 漏调用会 `SQLITE_ERROR: no such table` |
 | 不要改 `docker-compose.yml` 的端口映射 | 文档与 CI 依赖 3000 / 5173 |
+| 不要删 `frontend/nginx.conf` | 删了 Nginx 就没有 `/api` 转发规则，容器化后接口全 404（`524e241` 修的就是这个） |
+| 不要删 `.dockerignore` | 删了 `COPY . .` 会把 Windows 版 `better-sqlite3` 原生模块带进 Linux 容器，后端启动即 `Exec format error` |
 
 ## 测试架构要点
 
@@ -52,13 +54,26 @@ curl http://localhost:3000/api/health
 
 **E2E 需前后端同时运行**，`playwright.config.js` 的 `webServer` 是注释掉的。
 
-## 已知缺陷（修复前先和用户确认）
+## 已知缺陷与待办（动手前先和用户确认）
 
-- `frontend/Dockerfile` 用 Nginx 托管静态文件，但**没配 `/api` 反向代理**，
-  容器化后前端接口请求会 404。需补 `nginx.conf` 的
-  `location /api { proxy_pass http://backend:3000; }`
-- 前端标签筛选无 UI 入口（后端 `GET /api/notes?tag=xxx` 已支持）
-- 前端错误提示是顶部红色横条，可改 toast
+### ✅ 已修复（旧文档曾列为缺陷，**勿重复实现**）
+
+| 曾记录的缺陷 | 修复于 | 现状 |
+|---|---|---|
+| Nginx 未配 `/api` 反向代理 → 容器内接口 404 | `524e241` | `frontend/nginx.conf` 的 `location /api` 已生效 |
+| 前端标签筛选无 UI 入口 | `c4a5db0` | `App.jsx` 有 `tag-filter-bar` / `clear-tag-filter`，点 `note-tag` 即筛选 |
+| 错误提示是顶部红色横条 | `079a9e5` | 已改 toast（`data-testid="toast"`、自动消失、可手动关闭） |
+
+> 这三条在 `v0.1.0`–`v0.4.0` 期间陆续修完。照着旧版本文档重做一遍 = 白干。
+
+### 仍未处理
+
+- **笔记排序无选项**：`backend/src/routes/notes.js:51` 硬编码 `ORDER BY updated_at DESC`，
+  可加置顶 / 收藏优先 / 按创建时间排序
+- **后端无 ESLint / Prettier**：`backend/package.json` 只有 `test` 脚本，无 `lint` 与相关依赖
+- **CI 无 staging 环境**：`.github/workflows/deploy.yml` 的 `deploy` job 由仓库变量
+  `vars.DEPLOY_ENABLED` 控制，未配服务器时 skipped
+- **E2E 需手动起前后端**：`playwright.config.js` 的 `webServer` 是注释掉的
 
 ## Git 工作流
 
