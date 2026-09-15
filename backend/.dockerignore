@@ -1,0 +1,36 @@
+# ===== Docker 构建上下文排除清单 =====
+#
+# 🔴 最重要的一条：node_modules
+#
+# 为什么必须排除？踩过的坑：
+#   1. 本地在 Windows 上 npm install，better-sqlite3 装的是 Windows 版原生模块
+#      （node_modules/better-sqlite3/build/Release/better_sqlite3.node）
+#   2. 没有这个文件时，Dockerfile 的 `COPY . .` 会把它复制进 Linux 容器
+#   3. 容器启动加载该文件 → `Error loading shared library ... Exec format error`
+#      （Windows PE 文件无法在 Linux 执行）
+#   4. 它会覆盖 Dockerfile 里 `RUN npm ci` 装好的正确 Linux 版
+#
+# 排除后，容器内完全靠 `RUN npm ci` 自己装 Linux 版依赖，架构自然正确，
+# 而且构建上下文从 43MB 降到几十 KB，构建更快。
+node_modules
+
+# 本地开发数据库（容器内有自己的数据，通过 volume 挂载）
+data
+
+# 环境变量（JWT_SECRET 等敏感信息不能进镜像）
+.env
+.env.local
+.env.*.local
+
+# 日志与运行时产物
+*.log
+npm-debug.log*
+
+# 编辑器 / 系统文件
+.vscode
+.idea
+.DS_Store
+
+# 版本控制
+.git
+.gitignore
